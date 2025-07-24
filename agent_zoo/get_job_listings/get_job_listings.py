@@ -114,9 +114,9 @@ Your goal is to return a structured LinkList object that contains all job listin
    - Navigate to all subsequent pages.
    - Apply the same filtering logic on each page.
    - Accumulate links across all pages.
-4. For each job posting link:
-   - Use the `hash_job_link` function to generate a unique hash based on the job title and URL.
-   - If not in memory:
+4. For each job posting link:    
+   - Generate a hash using the `hash_job_link(title, url)` function (available via tool).
+   - If the hash is not already in memory:
      - Add the job link to the LinkList.
      - Save the hash along with url and title to memory to prevent future duplicates.
 
@@ -142,8 +142,7 @@ Return your final answer as a `LinkList` object.
                 agent = Agent(
                     name="job_listing_extractor",
                     instructions=agent_prompt,
-                    # model="gpt-4.1-mini",
-                    model="gpt-3.5-turbo",
+                    model="gpt-4.1-mini",
                     mcp_servers=[mcp_server_playwright, mcp_server_memory],
                     tools=[hash_job_link],
                     output_type=LinkList, 
@@ -178,7 +177,7 @@ def demo():
     ("Max-Planck Institute for intelligent systems", "Germany", "Tuebingen", "https://is.mpg.de/", "https://is.mpg.de/career"),
     ("Transporeon", "Germany", "Ulm", "https://www.transporeon.com", "https://trimblecareers.emea.trimble.com/careers"),
     ]
-    cmpany_id = 0
+    cmpany_id = 1
     company_name, country, city, expected_website, expected_career_page = TEST_COMPANIES[cmpany_id]
     async def main():
         result = await get_job_listings(expected_career_page)
