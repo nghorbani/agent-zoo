@@ -1,4 +1,12 @@
+from typing import List, Optional
+import hashlib
 from pydantic import BaseModel, Field
+from loguru import logger
+import dotenv
+from agents import Agent, Runner, trace, function_tool
+from agents.mcp import MCPServerStdio
+
+dotenv.load_dotenv(override=True)
 
 class Job(BaseModel):
     """
@@ -32,9 +40,32 @@ class LinkList(BaseModel):
     links: List[Link] = Field(description="A list of job listing links")
 
 
-async def get_job_listings(career_page_url:str) -> JobListings:
+@function_tool
+def hash_job_link(title: str, url: str) -> str:
     """
+    Normalizes the title, combines it with the URL, and returns a SHA-256 hash.
     
+    Args:
+        title (str): The job title.
+        url (str): The URL to the job listing.
+        
+    Returns:
+        str: A hexadecimal SHA-256 hash representing the normalized title + URL.
+    """
+    normalized_title = " ".join(title.strip().lower().split())
+    combined = f"{normalized_title}|{url.strip()}"
+    return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+
+
+async def get_job_listings(career_page_url: str) -> LinkList:
+    """
+    Extract job listing links from a company's career page.
+    
+    Args:
+        career_page_url (str): The URL of the company's career page
+        
+    Returns:
+        LinkList: A list of job listing links found on the career page
     """
 
     
@@ -54,7 +85,7 @@ async def get_job_listings(career_page_url:str) -> JobListings:
         },
         "memory": {
             "name": "Memory",
-            "params": {"command": "npx", "args": ["-y", "mcp-memory-libsql"], "env": {"LIBSQL_URL": "file:./memory/ed.db"}},
+            "params": {"command": "npx", "args": ["-y", "mcp-memory-libsql"], "env": {"LIBSQL_URL": "file:.job_listings.db"}},
             "client_session_timeout_seconds": 30
         },
     }
@@ -78,14 +109,13 @@ Your goal is to return a structured LinkList object that contains all job listin
      - Avoid links like "Contact", "About us", "Imprint", or "Privacy Policy".
      - Avoid links that loop back to the same page or external sites unrelated to job posts.
    - Use heuristics (e.g., presence of job-related words in the anchor text or URL).
+   - Dont visit the job link itself yet, just collect the URLs.
 3. Detect and follow pagination (e.g., "Next", "Weiter", or page numbers):
    - Navigate to all subsequent pages.
    - Apply the same filtering logic on each page.
    - Accumulate links across all pages.
 4. For each job posting link:
-   - Normalize the title by stripping whitespace and collapsing internal spaces.
-   - Combine the title and URL and hash them.
-   - Check against memory if the hash exists. If so, skip it.
+   - Use the `hash_job_link` function to generate a unique hash based on the job title and URL.
    - If not in memory:
      - Add the job link to the LinkList.
      - Save the hash along with url and title to memory to prevent future duplicates.
@@ -97,41 +127,48 @@ Return a single `LinkList` object containing unique job posting links.
 Use memory to persist visited job links across runs. Store the following fields:
 - `title`
 - `url`
-- `hash(title + url)`
+- `hash`
 
 Only use the `web_browser` tool to navigate and extract information.
 Return your final answer as a `LinkList` object.
 """
 
 
-    # Use MCP server with the correct pattern
-    async with MCPServerStdio(**server_configs["playwright"]) as mcp_server_playwright:
-        async with MCPServerStdio(**server_configs["memory"]) as mcp_server_memory:
-            # Create the agent with the MCP server
-            agent = Agent(
-                name="job_listing_extractor",
-                instructions=agent_prompt,
-                model="gpt-4.1-mini",
-                mcp_servers=[mcp_server_playwright, mcp_server_memory],
-                output_type=LinkList
-            )
-            
-            # Use trace and await Runner.run as specified
-            with trace("extract job listings"):
-                result = await Runner.run(agent, f"Please extract job listings from {career_page_url}.")
+    try:
+        # Use MCP server with the correct pattern
+        async with MCPServerStdio(**server_configs["playwright"]) as mcp_server_playwright:
+            async with MCPServerStdio(**server_configs["memory"]) as mcp_server_memory:
+                # Create the agent with the MCP server
+                agent = Agent(
+                    name="job_listing_extractor",
+                    instructions=agent_prompt,
+                    # model="gpt-4.1-mini",
+                    model="gpt-3.5-turbo",
+                    mcp_servers=[mcp_server_playwright, mcp_server_memory],
+                    tools=[hash_job_link],
+                    output_type=LinkList, 
+                    
+                )
                 
-                # The result should already be structured due to output_type=LinkList
-                if hasattr(result, 'final_output') and isinstance(result.final_output, LinkList):
-                    structured = result.final_output
-                    logger.info(f"Extracted {len(structured.links)} job links from {career_page_url}")
-                    return structured
-                elif isinstance(result, LinkList):
-                    logger.info(f"Extracted {len(result.links)} job links from {career_page_url}")
-                    return result
-                else:
-                    # Fallback if structured response parsing failed
-                    logger.warning(f"Failed to get structured response for {career_page_url}. Returning empty LinkList.")
-    return None
+                # Use trace and await Runner.run as specified
+                with trace("extract job listings"):
+                    result = await Runner.run(agent, f"Please extract job listings from {career_page_url}.", max_turns=100)
+                    
+                    # The result should already be structured due to output_type=LinkList
+                    if hasattr(result, 'final_output') and isinstance(result.final_output, LinkList):
+                        structured = result.final_output
+                        logger.info(f"Extracted {len(structured.links)} job links from {career_page_url}")
+                        return structured
+                    elif isinstance(result, LinkList):
+                        logger.info(f"Extracted {len(result.links)} job links from {career_page_url}")
+                        return result
+                    else:
+                        # Fallback if structured response parsing failed
+                        logger.warning(f"Failed to get structured response for {career_page_url}. Returning empty LinkList.")
+                        return LinkList(links=[])
+    except Exception as e:
+        logger.error(f"Error extracting job listings from {career_page_url}: {e}")
+        return LinkList(links=[])
 
 def demo():
     import asyncio
@@ -141,11 +178,11 @@ def demo():
     ("Max-Planck Institute for intelligent systems", "Germany", "Tuebingen", "https://is.mpg.de/", "https://is.mpg.de/career"),
     ("Transporeon", "Germany", "Ulm", "https://www.transporeon.com", "https://trimblecareers.emea.trimble.com/careers"),
     ]
-    cmpany_id = -1
+    cmpany_id = 0
     company_name, country, city, expected_website, expected_career_page = TEST_COMPANIES[cmpany_id]
     async def main():
         result = await get_job_listings(expected_career_page)
-        if result is None:
+        if len(result.links) == 0:
             print("No job listings found.")
         else:
             print(f"Found {len(result.links)} job listings:")
