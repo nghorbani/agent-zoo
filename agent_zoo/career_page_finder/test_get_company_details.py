@@ -22,8 +22,8 @@ def test_company_url():
 
 def test_career_page():
     for company in TEST_COMPANIES:
-        company_name, country, city, website, career_page = company
-        results = get_career_page(company_name, city, country, website)
+        company_name, country, city, expected_website, expected_career_page = company
+        career_page = get_career_page(company_name, city, country, website)
         
-        assert results, f"No results found for career page of {company_name}"
-        assert career_page in results[0], f"Expected career page '{career_page}' not found in result '{results[0]}' for {company_name}"
+        assert career_page, f"No career_page found for company {company_name}"
+        assert career_page in , f"Expected career page '{expected_career_page}' equal to the deteted one {career_page} for {company_name}"
