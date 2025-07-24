@@ -87,26 +87,26 @@ async def get_career_page(company_name: str, city: str, country: str, website:Op
     urls_list = "\n".join([f"{i+1}. {url}" for i, url in enumerate(possible_career_pages)])
     
     agent_prompt = f"""
-You are a web validator agent. Your task is to find the official career or job listings page of a company from an ordered list of candidate URLs.
+        You are a web validator agent. Your task is to find the official career or job listings page of a company from an ordered list of candidate URLs.
 
-Company: {company_name}
-Location: {city}, {country}
+        Company: {company_name}
+        Location: {city}, {country}
 
-Candidate URLs to check:
-{urls_list}
+        Candidate URLs to check:
+        {urls_list}
 
-Instructions:
-1. Use the Playwright browser tool to visit the first URL in the list.
-2. Determine if it is a valid career page by checking for the following:
-   - It displays actual job listings (not just HR information or general career info)
-   - Jobs are listed directly on the page or easily accessible
-   - The page is specifically for careers/jobs at this company
-3. If the first URL is valid, return it immediately. Do not check further URLs.
-4. If it is not valid, proceed to the next one and repeat.
-5. Stop at the first valid match.
+        Instructions:
+        1. Use the Playwright browser tool to visit the first URL in the list.
+        2. Determine if it is a valid career page by checking for the following:
+        - It displays actual job listings (not just HR information or general career info)
+        - Jobs are listed directly on the page or easily accessible
+        - The page is specifically for careers/jobs at this company
+        3. If the first URL is valid, return it immediately. Do not check further URLs.
+        4. If it is not valid, proceed to the next one and repeat.
+        5. Stop at the first valid match.
 
-Return the validated career page information with confidence and reasoning.
-"""
+        Return the validated career page information with confidence and reasoning.
+        """
 
     # Use MCP server with the correct pattern
     async with MCPServerStdio(
