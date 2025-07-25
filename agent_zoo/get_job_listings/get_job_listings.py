@@ -114,20 +114,11 @@ Your goal is to return a structured LinkList object that contains all job listin
    - Navigate to all subsequent pages.
    - Apply the same filtering logic on each page.
    - Accumulate links across all pages.
-4. For each job posting link:    
-   - Generate a hash using the `hash_job_link(title, url)` function (available via tool).
-   - If the hash is not already in memory:
-     - Add the job link to the LinkList.
-     - Save the hash along with url and title to memory to prevent future duplicates.
+
 
 ## OUTPUT
 Return a single `LinkList` object containing unique job posting links.
 
-## MEMORY USAGE
-Use memory to persist visited job links across runs. Store the following fields:
-- `title`
-- `url`
-- `hash`
 
 Only use the `web_browser` tool to navigate and extract information.
 Return your final answer as a `LinkList` object.
@@ -137,34 +128,33 @@ Return your final answer as a `LinkList` object.
     try:
         # Use MCP server with the correct pattern
         async with MCPServerStdio(**server_configs["playwright"]) as mcp_server_playwright:
-            async with MCPServerStdio(**server_configs["memory"]) as mcp_server_memory:
-                # Create the agent with the MCP server
-                agent = Agent(
-                    name="job_listing_extractor",
-                    instructions=agent_prompt,
-                    model="gpt-4.1-mini",
-                    mcp_servers=[mcp_server_playwright, mcp_server_memory],
-                    tools=[hash_job_link],
-                    output_type=LinkList, 
-                    
-                )
+            # Create the agent with the MCP server
+            agent = Agent(
+                name="job_listing_extractor",
+                instructions=agent_prompt,
+                model="gpt-4.1-mini",
+                mcp_servers=[mcp_server_playwright],
+                tools=[hash_job_link],
+                output_type=LinkList, 
                 
-                # Use trace and await Runner.run as specified
-                with trace("extract job listings"):
-                    result = await Runner.run(agent, f"Please extract job listings from {career_page_url}.", max_turns=100)
-                    
-                    # The result should already be structured due to output_type=LinkList
-                    if hasattr(result, 'final_output') and isinstance(result.final_output, LinkList):
-                        structured = result.final_output
-                        logger.info(f"Extracted {len(structured.links)} job links from {career_page_url}")
-                        return structured
-                    elif isinstance(result, LinkList):
-                        logger.info(f"Extracted {len(result.links)} job links from {career_page_url}")
-                        return result
-                    else:
-                        # Fallback if structured response parsing failed
-                        logger.warning(f"Failed to get structured response for {career_page_url}. Returning empty LinkList.")
-                        return LinkList(links=[])
+            )
+            
+            # Use trace and await Runner.run as specified
+            with trace("extract job listings"):
+                result = await Runner.run(agent, f"Please extract job listings from {career_page_url}.", max_turns=100)
+                
+                # The result should already be structured due to output_type=LinkList
+                if hasattr(result, 'final_output') and isinstance(result.final_output, LinkList):
+                    structured = result.final_output
+                    logger.info(f"Extracted {len(structured.links)} job links from {career_page_url}")
+                    return structured
+                elif isinstance(result, LinkList):
+                    logger.info(f"Extracted {len(result.links)} job links from {career_page_url}")
+                    return result
+                else:
+                    # Fallback if structured response parsing failed
+                    logger.warning(f"Failed to get structured response for {career_page_url}. Returning empty LinkList.")
+                    return LinkList(links=[])
     except Exception as e:
         logger.error(f"Error extracting job listings from {career_page_url}: {e}")
         return LinkList(links=[])
