@@ -1,0 +1,128 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-zoo"
+dynamic = ["version"]
+description = "Agent experiments repository"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    {name = "Job Miner Team", email = "contact@jobminer.dev"},
+]
+license = {text = "MIT"}
+keywords = ["agents", ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "omegaconf>=2.3.0",
+    "openai-agents>=0.2.3",
+    "pydantic>=2.11.7",
+    "loguru>=0.7.0",
+    "fire>=0.6.0",
+    "openai>=1.97.1",
+    "playwright>=1.54.0",
+    "requests>=2.32.4",
+    "google-search-results>=2.4.2",
+    "crawl4ai>=0.7.1",
+    "nest-asyncio>=1.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.0.0",
+]
+docs = [
+
+]
+
+[project.urls]
+Homepage = "https://github.com/nghorbani/agent-zoo"
+Repository = "https://github.com/nghorbani/agent-zoo"
+Documentation = "https://agent-zoo.readthedocs.io"
+"Bug Tracker" = "https://github.com/nghorbani/agent-zoo/issues"
+
+
+[tool.setuptools_scm]
+write_to = "agent_zoo/__version__.py"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agent_zoo*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["agent_zoo"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options] 
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=agent_zoo",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+]
