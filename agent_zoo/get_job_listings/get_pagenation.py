@@ -8,31 +8,7 @@ from agents.mcp import MCPServerStdio
 
 dotenv.load_dotenv(override=True)
 
-class Job(BaseModel):
-    """
-    Represents a job listing with relevant details.
-    """
-    title: str = Field(description="The title of the job position")
-    location: str = Field(description="The location of the job")
-    url: str = Field(description="The URL to the job listing")
-    description: str = Field(description="A brief description of the job responsibilities and requirements")
-    date_posted: str = Field(description="The date when the job was posted")
-    skills_required: List[str] = Field(description="A list of skills required for the job")
-    employment_type: str = Field(description="Type of employment (e.g., full-time, part-time, contract)")
-    
-    
-class JobListings(BaseModel):
-    """
-    Represents a collection of job listings.
-    """
-    jobs: List[Job] = Field(description="A list of job listings")
-    
-class Link(BaseModel):
-    """
-    Represents a link to a job listing.
-    """
-    title: str = Field(description="The title of the job listing")
-    url: str = Field(description="The URL to the job listing")
+
 
 class PaginationInfo(BaseModel):
     """
@@ -50,34 +26,39 @@ class PageExtractionResult(BaseModel):
     links: List[Link] = Field(description="A list of job listing links")
     pagination_info: PaginationInfo = Field(description="Pagination information for the current page")
 
-
-@function_tool
-def hash_job_link(title: str, url: str) -> str:
+    
+async def get_job_listings(career_page_url: str) -> PageExtractionResult:
     """
-    Normalizes the title, combines it with the URL, and returns a SHA-256 hash.
+    Extract job listing links from a company's career page.
     
     Args:
-        title (str): The job title.
-        url (str): The URL to the job listing.
+        career_page_url (str): The URL of the company's career page
         
     Returns:
-        str: A hexadecimal SHA-256 hash representing the normalized title + URL.
+        LinkList: A list of job listing links found on the career page
     """
-    normalized_title = " ".join(title.strip().lower().split())
-    combined = f"{normalized_title}|{url.strip()}"
-    return hashlib.sha256(combined.encode('utf-8')).hexdigest()
 
-
-def create_pagination_agent(mcp_server_playwright) -> Agent:
-    """
-    Create a pagination detection agent that can be used as a tool.
     
-    Args:
-        mcp_server_playwright: The Playwright MCP server instance
-        
-    Returns:
-        Agent: Pagination detection agent
-    """
+    # Create MCP server configuration for Playwright
+    server_configs = {
+        "playwright": {
+            'name': 'Playwright Browser',
+            'params': {
+                "command": "npx", 
+                "args": ["@playwright/mcp@latest"],
+                "env": {
+                    "headless": "true",  # Essential for WSL
+                    # "DISPLAY": ":0"      # Optional display setting
+                }
+            },
+            'client_session_timeout_seconds': 60
+        },
+        "memory": {
+            "name": "Memory",
+            "params": {"command": "npx", "args": ["-y", "mcp-memory-libsql"], "env": {"LIBSQL_URL": "file:.job_listings.db"}},
+            "client_session_timeout_seconds": 30
+        },
+    }
     
     pagination_prompt = """
 You are a pagination detection specialist. Your sole task is to analyze the current web page for pagination information.
@@ -141,78 +122,8 @@ Return a PaginationInfo object with:
 Note: The page is already loaded by the main agent, so you can directly analyze the current page content.
 """
 
-    return Agent(
-        name="pagination_detector",
-        model="gpt-4.1-mini",
-        instructions=pagination_prompt,
-        mcp_servers=[mcp_server_playwright],
-        output_type=PaginationInfo,
-    )
-
-
-async def get_job_listings(career_page_url: str) -> PageExtractionResult:
-    """
-    Extract job listing links from a company's career page.
     
-    Args:
-        career_page_url (str): The URL of the company's career page
-        
-    Returns:
-        LinkList: A list of job listing links found on the career page
-    """
-
-    
-    # Create MCP server configuration for Playwright
-    server_configs = {
-        "playwright": {
-            'name': 'Playwright Browser',
-            'params': {
-                "command": "npx", 
-                "args": ["@playwright/mcp@latest"],
-                "env": {
-                    "headless": "true",  # Essential for WSL
-                    # "DISPLAY": ":0"      # Optional display setting
-                }
-            },
-            'client_session_timeout_seconds': 60
-        },
-        "memory": {
-            "name": "Memory",
-            "params": {"command": "npx", "args": ["-y", "mcp-memory-libsql"], "env": {"LIBSQL_URL": "file:.job_listings.db"}},
-            "client_session_timeout_seconds": 30
-        },
-    }
-    
-    # Simplified job extraction prompt
-    job_extraction_prompt = """
-You are a job listing extraction specialist. Your task is to extract job listings from a career page and use the pagination detection tool to find pagination information.
-
-## GOAL
-Extract all job listing links from the current page and use the pagination_detector tool to get complete pagination information.
-
-## INSTRUCTIONS
-
-1. Visit the provided `career_page_url` using the web_browser tool.
-2. Extract all anchor links (`<a>`) on the current page. For each link:
-   - Retain the link only if it appears to be a real job posting.
-   - Job links often contain job titles like "Software Engineer", "Data Scientist", "Sales Manager", etc.
-   - Avoid links such as "Contact", "About us", "Imprint", "Privacy Policy", or navigation elements.
-   - Avoid links that point to the same page or unrelated external sites.
-   - Use heuristics (e.g., presence of job-related words in the anchor text or URL).
-   - Do NOT visit the job listing URL itself — just collect the URL and the anchor text as the title.
-
-3. After extracting job links, use the pagination_detector tool to analyze the current page for pagination information.
-   - The tool will return complete pagination details including current page, total pages, and next page URL.
-
-## OUTPUT
-Return a PageExtractionResult object with:
-- links: Array of job listing links found on the current page
-- pagination_info: The complete PaginationInfo object from the pagination_detector tool
-
-Focus on extracting job links and let the pagination tool handle pagination detection.
-"""
-
-    max_pages = 5  # Limit the number of pages to visit to avoid infinite loops or excessive resource usage
+   
     try:
         # Use MCP server with the correct pattern
         async with MCPServerStdio(**server_configs["playwright"]) as mcp_server_playwright:
@@ -220,21 +131,14 @@ Focus on extracting job links and let the pagination tool handle pagination dete
             pages_visited = 0
             
             # Create pagination agent and convert to tool
-            pagination_agent = create_pagination_agent(mcp_server_playwright)
-            pagination_tool = pagination_agent.as_tool(
-                tool_name="pagination_detector",
-                tool_description="Analyze the current page for pagination information and return details about current page, total pages, and next page URL"
-            )
-            
-            # Create the main job extraction agent with pagination tool
-            agent = Agent(
-                name="job_extractor",
-                model="gpt-4.1-mini",
-                instructions=job_extraction_prompt,
-                mcp_servers=[mcp_server_playwright],
-                tools=[pagination_tool],
-                output_type=PageExtractionResult, 
-            )
+            pagination_agent = Agent(
+                    name="pagination_detector",
+                    model="gpt-4.1-mini",
+                    instructions=pagination_prompt,
+                    mcp_servers=[mcp_server_playwright],
+                    output_type=PaginationInfo,
+                )
+    
             
             all_links = []
             last_pagination_info = None
