@@ -106,11 +106,13 @@ strict_equality = true
 
 [tool.pytest.ini_options] 
 testpaths = ["tests"]
+asyncio_mode = "strict"
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "network: talks to live websites and APIs; needs SERPER_API_KEY, OPENAI_API_KEY, a Playwright browser and AGENT_ZOO_RUN_NETWORK=1",
 ]
 addopts = [
     "--strict-markers",
