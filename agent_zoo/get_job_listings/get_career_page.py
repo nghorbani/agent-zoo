@@ -13,17 +13,14 @@ it is assumed that company home page will be the top most one.
 
 """
 
-import os
-import requests
-from typing import List, Dict, Optional
-import json
+from typing import Optional
 
 from pydantic import BaseModel, Field
 from loguru import logger
 import dotenv
 from agents import Agent, Runner, trace
 from agents.mcp import MCPServerStdio
-from agent_zoo.career_page_finder.get_company_url import web_search, get_company_url
+from agent_zoo.get_job_listings.get_company_url import get_company_url, web_search
 
 
 dotenv.load_dotenv(override=True)

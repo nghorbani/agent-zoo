@@ -1,8 +1,17 @@
+"""Find a company's official website with a Serper web search."""
 
-from pydantic import BaseModel
-from loguru import logger
+import asyncio
+import os
+from typing import Dict, List, Optional
+
 import dotenv
+import requests
+from loguru import logger
+from pydantic import BaseModel
+
 dotenv.load_dotenv(override=True)
+
+
 class CompanyUrlResponse(BaseModel):
     company_name: str
     city: str
@@ -10,11 +19,6 @@ class CompanyUrlResponse(BaseModel):
     official_url: str
     confidence: float
     validation_notes: str
-    
-
-import os
-import requests
-from typing import List, Dict
 
 
 def serper_search(query: str, num_results: int = 10) -> Dict:
@@ -43,10 +47,10 @@ def serper_search(query: str, num_results: int = 10) -> Dict:
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        raise RuntimeError(f"Serper API request failed: {e}")
+        raise RuntimeError(f"Serper API request failed: {e}") from e
 
 
-def web_search(query: str,max_num_return: int = 5) -> List[str]:
+def web_search(query: str, max_num_return: int = 5) -> List[str]:
     """
     Web search tool to return top related urls.
 
@@ -56,7 +60,7 @@ def web_search(query: str,max_num_return: int = 5) -> List[str]:
     Returns:
         List[str]: A list of result URLs (may be empty).
     """
-    
+
     try:
         results = serper_search(query)
     except RuntimeError as e:
@@ -71,16 +75,16 @@ def web_search(query: str,max_num_return: int = 5) -> List[str]:
     return urls[:max_num_return]
 
 
-   
-async def get_company_url(name: str, city: str, country: str) -> dict:
-      query = f"company '{company_name}' in {city} {country} "
-      results = web_search(query, 1)
-      if not results:
-         return None
-      else:
-         return results[0]
-      
-if __name__ == "__main__":
-   demo()
+async def get_company_url(name: str, city: str, country: str) -> Optional[str]:
+    """Return the top search hit for the company, taken as its official website, or None."""
+    query = f"company '{name}' in {city} {country} "
+    results = web_search(query, 1)
+    return results[0] if results else None
 
-  
+
+def demo():
+    print(asyncio.run(get_company_url("Cubert", "Ulm", "Germany")))
+
+
+if __name__ == "__main__":
+    demo()
